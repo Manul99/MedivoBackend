@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="src/MedicineMonitor.Api/MedicineMonitor.Api.csproj" />
+  <Project Path="src/MedicineMonitor.Application/MedicineMonitor.Application.csproj" />
+  <Project Path="src/MedicineMonitor.Domain/MedicineMonitor.Domain.csproj" />
+  <Project Path="src/MedicineMonitor.Infrastructure/MedicineMonitor.Infrastructure.csproj" />
+  <Project Path="tests/MedicineMonitor.Application.Tests/MedicineMonitor.Application.Tests.csproj" />
+  <Project Path="tests/MedicineMonitor.Domain.Tests/MedicineMonitor.Domain.Tests.csproj" />
+  <Project Path="tests/MedicineMonitor.IntegrationTests/MedicineMonitor.IntegrationTests.csproj" />
+</Solution>

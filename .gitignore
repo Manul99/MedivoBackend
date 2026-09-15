@@ -1,0 +1,28 @@
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+
+# Build output
+bin/
+obj/
+
+# User secrets / local settings
+*.local.json
+.env
+.env.*
+
+# Firebase credentials
+service-account*.json
+firebase-adminsdk*.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test output
+TestResults/
+
+# Logs
+*.log
