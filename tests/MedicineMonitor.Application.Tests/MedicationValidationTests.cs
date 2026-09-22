@@ -11,9 +11,9 @@ public sealed class MedicationValidationTests
         var request = new CreateMedicationRequest
         {
             MedicineName = "Paracetamol",
-           // BoxId = "BOX001",
-            CompartmentIds = ["C01"],
-           // Schedules = [new MedicationScheduleRequest { Day = 1, Hour = 8, Minute = 0 }]
+            // BoxId = "BOX001",
+            CompartmentIds = new System.Collections.Generic.List<string> { "C01" },
+            Days = new System.Collections.Generic.List<string> { "MONDAY" }
         };
 
         var results = request.Validate(new System.ComponentModel.DataAnnotations.ValidationContext(request)).ToList();

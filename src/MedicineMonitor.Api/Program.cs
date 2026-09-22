@@ -8,13 +8,25 @@ using MedicineMonitor.Infrastructure;
 using MedicineMonitor.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
+var postgresConnection =
+    builder.Configuration.GetConnectionString("PostgreSQL");
+
+Console.WriteLine(
+    $"PostgreSQL configured: {!string.IsNullOrWhiteSpace(postgresConnection)}");
+
+Console.WriteLine(
+    $"PostgreSQL host info: {postgresConnection?.Split('@').LastOrDefault()}");
+
+builder.Services.AddSingleton(NpgsqlDataSource.Create(postgresConnection));
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<MedicationService>();
+builder.Services.AddHttpClient();
 
 builder.Services.AddInfrastructure(builder.Configuration);
 
