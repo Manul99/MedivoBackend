@@ -72,7 +72,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors("WebClient");
-//app.UseMiddleware<CsrfMiddleware>();
+app.UseMiddleware<CsrfMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
