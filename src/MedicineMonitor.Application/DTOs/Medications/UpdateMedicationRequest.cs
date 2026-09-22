@@ -26,6 +26,12 @@ public sealed class UpdateMedicationRequest : IValidatableObject
     public IEnumerable<ValidationResult> Validate(
         ValidationContext validationContext)
     {
+        /*
+         * ==========================================
+         * MEDICINE NAME
+         * ==========================================
+         */
+
         if (string.IsNullOrWhiteSpace(MedicineName))
         {
             yield return new ValidationResult(
@@ -33,12 +39,54 @@ public sealed class UpdateMedicationRequest : IValidatableObject
                 [nameof(MedicineName)]);
         }
 
-        if (CompartmentIds.Any(string.IsNullOrWhiteSpace))
+        /*
+         * ==========================================
+         * COMPARTMENTS
+         * ==========================================
+         */
+
+        if (CompartmentIds.Count == 0)
         {
             yield return new ValidationResult(
-                "Compartment IDs cannot be empty.",
+                "At least one compartment must be selected.",
                 [nameof(CompartmentIds)]);
         }
+
+        var normalizedCompartments =
+            CompartmentIds
+                .Where(x =>
+                    !string.IsNullOrWhiteSpace(x))
+                .Select(x =>
+                    x.Trim().ToUpperInvariant())
+                .ToList();
+
+        if (
+            normalizedCompartments.Any(
+                x => !IsValidCompartment(x))
+        )
+        {
+            yield return new ValidationResult(
+                "Compartment IDs must be C01 through C21.",
+                [nameof(CompartmentIds)]);
+        }
+
+        if (
+            normalizedCompartments.Count !=
+            normalizedCompartments
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count()
+        )
+        {
+            yield return new ValidationResult(
+                "Compartment IDs cannot contain duplicates.",
+                [nameof(CompartmentIds)]);
+        }
+
+        /*
+         * ==========================================
+         * DAYS
+         * ==========================================
+         */
 
         if (Days.Count == 0)
         {
@@ -47,23 +95,73 @@ public sealed class UpdateMedicationRequest : IValidatableObject
                 [nameof(Days)]);
         }
 
-        var validDays = new HashSet<string>(
-            StringComparer.OrdinalIgnoreCase)
-        {
-            "MONDAY",
-            "TUESDAY",
-            "WEDNESDAY",
-            "THURSDAY",
-            "FRIDAY",
-            "SATURDAY",
-            "SUNDAY"
-        };
+        var validDays =
+            new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase)
+            {
+                "MONDAY",
+                "TUESDAY",
+                "WEDNESDAY",
+                "THURSDAY",
+                "FRIDAY",
+                "SATURDAY",
+                "SUNDAY"
+            };
 
-        if (Days.Any(day => !validDays.Contains(day)))
+        var normalizedDays =
+            Days
+                .Where(x =>
+                    !string.IsNullOrWhiteSpace(x))
+                .Select(x =>
+                    x.Trim().ToUpperInvariant())
+                .ToList();
+
+        if (
+            normalizedDays.Any(
+                x => !validDays.Contains(x))
+        )
         {
             yield return new ValidationResult(
                 "Days must contain valid weekdays.",
                 [nameof(Days)]);
         }
+
+        /*
+         * ==========================================
+         * TIME
+         * ==========================================
+         */
+
+        if (Hour is < 0 or > 23)
+        {
+            yield return new ValidationResult(
+                "Hour must be between 0 and 23.",
+                [nameof(Hour)]);
+        }
+
+        if (Minute is < 0 or > 59)
+        {
+            yield return new ValidationResult(
+                "Minute must be between 0 and 59.",
+                [nameof(Minute)]);
+        }
+    }
+
+    private static bool IsValidCompartment(
+        string value)
+    {
+        if (
+            value.Length != 3 ||
+            value[0] != 'C'
+        )
+        {
+            return false;
+        }
+
+        return int.TryParse(
+            value[1..],
+            out var number
+        )
+        && number is >= 1 and <= 21;
     }
 }

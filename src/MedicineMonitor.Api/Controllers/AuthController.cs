@@ -20,8 +20,16 @@ public sealed class AuthController(
     public IActionResult GetCsrfToken()
     {
         var token = CsrfMiddleware.CreateToken();
-        CsrfMiddleware.AppendTokenCookie(Response, token, IsSecureCookies());
-        return NoContent();
+
+        CsrfMiddleware.AppendTokenCookie(
+            Response,
+            token,
+            IsSecureCookies());
+
+        return Ok(new
+        {
+            token
+        });
     }
 
     [HttpPost("session")]

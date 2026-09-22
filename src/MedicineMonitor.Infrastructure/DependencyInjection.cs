@@ -28,6 +28,20 @@ public static class DependencyInjection
 
         services.AddScoped<IMedicationRepository, FirestoreMedicationRepository>();
 
+        services.AddSingleton<FirebaseClient>();
+
+        services.AddSingleton<IIdentityService, FirebaseIdentityService>();
+
+        services.AddScoped<IUserRepository, UserRepository>();
+
+        services.AddScoped<IMedicationRepository, FirestoreMedicationRepository>();
+
+        services.AddScoped<
+            IFirebaseRealtimeDatabaseService,
+            FirebaseRealtimeDatabaseService>();
+
+        services.AddScoped<IBoxRepository,BoxRepository>();
+
         return services;
     }
 }

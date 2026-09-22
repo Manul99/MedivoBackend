@@ -21,6 +21,8 @@ public sealed class FirestoreMedicationRepository(FirebaseClient client)
         {
             ["userId"] = medication.UserId,
 
+            ["boxId"] = medication.BoxId,
+
             ["medicineName"] = medication.MedicineName,
 
             ["compartmentIds"] = medication.CompartmentIds.ToList(),
@@ -91,10 +93,10 @@ public sealed class FirestoreMedicationRepository(FirebaseClient client)
             .ToList();
     }
 
-    public async Task DeleteAsync(
-        string userId,
-        string medicationId,
-        CancellationToken cancellationToken)
+    public async Task DeactivateAsync(
+    string userId,
+    string medicationId,
+    CancellationToken cancellationToken)
     {
         var existing = await GetAsync(
             userId,
@@ -104,9 +106,21 @@ public sealed class FirestoreMedicationRepository(FirebaseClient client)
         if (existing is null)
             return;
 
+        /*
+         * Do NOT delete the medication.
+         *
+         * We keep the record in Firestore for
+         * history and change only isActive.
+         */
+
         await _collection
             .Document(medicationId)
-            .DeleteAsync(
+            .UpdateAsync(
+                new Dictionary<string, object>
+                {
+                    ["isActive"] = false,
+                    ["updatedAtUtc"] = DateTime.UtcNow
+                },
                 cancellationToken: cancellationToken);
     }
 
@@ -153,6 +167,7 @@ public sealed class FirestoreMedicationRepository(FirebaseClient client)
         return new MedicineDocument(
             id,
             GetString(data, "userId"),
+            GetString(data, "boxId"),
             GetString(data, "medicineName"),
             compartments,
             schedules,

@@ -12,4 +12,5 @@ public sealed class CompleteProfileRequest
 
     [MaxLength(30)]
     public string? PhoneNumber { get; init; }
+    public string BoxId { get; set; }
 }

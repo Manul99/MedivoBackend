@@ -6,85 +6,203 @@ namespace MedicineMonitor.Application.Services;
 
 public sealed class MedicationService(
     IMedicationRepository repository,
-    ICurrentUser currentUser)
+    IUserRepository userRepository,
+    IBoxRepository boxRepository,
+    ICurrentUser currentUser,
+    IFirebaseRealtimeDatabaseService realtimeDatabaseService)
+
+
 {
+    /*
+     * ==========================================
+     * CREATE
+     * ==========================================
+     */
+    private readonly IFirebaseRealtimeDatabaseService _realtimeDatabaseService =
+    realtimeDatabaseService;
+
     public async Task<MedicationResponse> CreateAsync(
         CreateMedicationRequest request,
         CancellationToken cancellationToken)
     {
-        var userId = GetRequiredUserId();
+        var firebaseUserId =
+            GetRequiredUserId();
 
-        var document = BuildDocument(
-            Guid.NewGuid().ToString("N"),
-            userId,
-            request.MedicineName,
-            request.CompartmentIds,
-            request.Days,
-            request.Hour,
-            request.Minute,
-            DateTime.UtcNow,
-            DateTime.UtcNow);
+        var user =
+            await userRepository.GetByFirebaseUidAsync(
+                firebaseUserId,
+                cancellationToken);
 
-        await repository.SaveAsync(document, cancellationToken);
+        if (user is null)
+        {
+            throw new InvalidOperationException(
+                "Application user profile was not found.");
+        }
+
+        var box =
+            await boxRepository.GetByUserIdAsync(
+                user.Id,
+                cancellationToken);
+
+        if (box is null)
+        {
+            throw new InvalidOperationException(
+                "No Medicine Monitor box is registered for this user.");
+        }
+
+        var now =
+            DateTime.UtcNow;
+
+        var medicationId =
+            Guid.NewGuid().ToString("N");
+
+        var document =
+            BuildDocument(
+                medicationId,
+                firebaseUserId,
+                box.BoxId,
+                request.MedicineName,
+                request.CompartmentIds,
+                request.Days,
+                request.Hour,
+                request.Minute,
+                now,
+                now);
+
+        await repository.SaveAsync(
+            document,
+            cancellationToken);
+
+        var day = string.Join(
+            ",",
+            document.Schedules.Select(x => x.Day));
+
+        var time = document.Schedules
+            .Select(x => $"{x.Hour:D2}:{x.Minute:D2}")
+            .Distinct()
+            .Single();
+
+        foreach (var compartmentId in document.CompartmentIds)
+        {
+            var numericCompartmentId =
+                ParseCompartmentId(compartmentId);
+
+            await realtimeDatabaseService.SetAlarmAsync(
+                document.BoxId,
+                numericCompartmentId,
+                new FirebaseAlarmConfiguration(
+                    day,
+                    true,
+                    time),
+                cancellationToken);
+        }
 
         return ToResponse(document);
     }
 
+    /*
+     * ==========================================
+     * GET ALL
+     * ==========================================
+     */
+
     public async Task<IReadOnlyList<MedicationResponse>> GetAllAsync(
         CancellationToken cancellationToken)
     {
-        var userId = GetRequiredUserId();
+        var userId =
+            GetRequiredUserId();
 
-        var documents = await repository.GetForUserAsync(
-            userId,
-            cancellationToken);
+        var documents =
+            await repository.GetForUserAsync(
+                userId,
+                cancellationToken);
 
         return documents
             .Select(ToResponse)
             .ToList();
     }
 
+    /*
+     * ==========================================
+     * GET ONE
+     * ==========================================
+     */
+
     public async Task<MedicationResponse?> GetAsync(
         string id,
         CancellationToken cancellationToken)
     {
-        var userId = GetRequiredUserId();
+        var userId =
+            GetRequiredUserId();
 
-        var document = await repository.GetAsync(
-            userId,
-            id,
-            cancellationToken);
+        var document =
+            await repository.GetAsync(
+                userId,
+                id,
+                cancellationToken);
 
         return document is null
             ? null
             : ToResponse(document);
     }
 
+    /*
+     * ==========================================
+     * UPDATE
+     * ==========================================
+     */
+
     public async Task<MedicationResponse?> UpdateAsync(
         string id,
         UpdateMedicationRequest request,
         CancellationToken cancellationToken)
     {
-        var userId = GetRequiredUserId();
+        var firebaseUserId =
+            GetRequiredUserId();
 
-        var existing = await repository.GetAsync(
-            userId,
-            id,
-            cancellationToken);
+        var existing =
+            await repository.GetAsync(
+                firebaseUserId,
+                id,
+                cancellationToken);
 
         if (existing is null)
             return null;
 
-        var updated = BuildDocument(
-            existing.Id,
-            userId,
-            request.MedicineName,
-            request.CompartmentIds,
-            request.Days,
-            request.Hour,
-            request.Minute,
-            existing.CreatedAtUtc,
-            DateTime.UtcNow);
+        var user =
+            await userRepository.GetByFirebaseUidAsync(
+                firebaseUserId,
+                cancellationToken);
+
+        if (user is null)
+        {
+            throw new InvalidOperationException(
+                "Application user profile was not found.");
+        }
+
+        var box =
+            await boxRepository.GetByUserIdAsync(
+                user.Id,
+                cancellationToken);
+
+        if (box is null)
+        {
+            throw new InvalidOperationException(
+                "No Medicine Monitor box is registered for this user.");
+        }
+
+        var updated =
+            BuildDocument(
+                existing.Id,
+                firebaseUserId,
+                box.BoxId,
+                request.MedicineName,
+                request.CompartmentIds,
+                request.Days,
+                request.Hour,
+                request.Minute,
+                existing.CreatedAtUtc,
+                DateTime.UtcNow);
 
         await repository.SaveAsync(
             updated,
@@ -93,21 +211,29 @@ public sealed class MedicationService(
         return ToResponse(updated);
     }
 
-    public async Task<bool> DeleteAsync(
+    /*
+     * ==========================================
+     * DEACTIVATE
+     * ==========================================
+     */
+
+    public async Task<bool> DeactivateAsync(
         string id,
         CancellationToken cancellationToken)
     {
-        var userId = GetRequiredUserId();
+        var userId =
+            GetRequiredUserId();
 
-        var existing = await repository.GetAsync(
-            userId,
-            id,
-            cancellationToken);
+        var existing =
+            await repository.GetAsync(
+                userId,
+                id,
+                cancellationToken);
 
         if (existing is null)
             return false;
 
-        await repository.DeleteAsync(
+        await repository.DeactivateAsync(
             userId,
             id,
             cancellationToken);
@@ -115,21 +241,35 @@ public sealed class MedicationService(
         return true;
     }
 
+    /*
+     * ==========================================
+     * CURRENT USER
+     * ==========================================
+     */
+
     private string GetRequiredUserId()
     {
-        if (!currentUser.IsAuthenticated ||
-            string.IsNullOrWhiteSpace(currentUser.UserId))
+        if (
+            !currentUser.IsAuthenticated ||
+            string.IsNullOrWhiteSpace(
+                currentUser.UserId))
         {
             throw new UnauthorizedAccessException();
-            //return "test-user-001";
         }
 
         return currentUser.UserId;
     }
 
+    /*
+     * ==========================================
+     * BUILD FIRESTORE DOCUMENT
+     * ==========================================
+     */
+
     private static MedicineDocument BuildDocument(
         string id,
         string userId,
+        string boxId,
         string medicineName,
         IEnumerable<string> compartmentIds,
         IEnumerable<string> days,
@@ -138,30 +278,76 @@ public sealed class MedicationService(
         DateTime createdAtUtc,
         DateTime updatedAtUtc)
     {
-        var normalizedCompartments = compartmentIds
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(x => x.Trim().ToUpperInvariant())
-            .Distinct()
-            .ToList();
+        /*
+         * ==========================================
+         * MEDICINE NAME
+         * ==========================================
+         */
 
-        if (normalizedCompartments.Count is < 1 or > 21)
+        if (string.IsNullOrWhiteSpace(
+            medicineName))
+        {
+            throw new ArgumentException(
+                "Medicine name is required.");
+        }
+
+        /*
+         * ==========================================
+         * BOX ID
+         * ==========================================
+         */
+
+        if (string.IsNullOrWhiteSpace(boxId))
+        {
+            throw new ArgumentException(
+                "Medicine Monitor Box ID is required.");
+        }
+
+        /*
+         * ==========================================
+         * COMPARTMENTS
+         * ==========================================
+         */
+
+        var normalizedCompartments =
+            compartmentIds
+                .Where(x =>
+                    !string.IsNullOrWhiteSpace(x))
+                .Select(x =>
+                    x.Trim().ToUpperInvariant())
+                .Distinct()
+                .ToList();
+
+        if (
+            normalizedCompartments.Count is
+            < 1 or > 21)
         {
             throw new ArgumentException(
                 "A medication must use between 1 and 21 compartments.");
         }
 
-        if (normalizedCompartments.Any(
+        if (
+            normalizedCompartments.Any(
                 x => !IsValidCompartment(x)))
         {
             throw new ArgumentException(
                 "Compartment IDs must be C01 through C21.");
         }
 
-        var normalizedDays = days
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(x => x.Trim().ToUpperInvariant())
-            .Distinct()
-            .ToList();
+        /*
+         * ==========================================
+         * DAYS
+         * ==========================================
+         */
+
+        var normalizedDays =
+            days
+                .Where(x =>
+                    !string.IsNullOrWhiteSpace(x))
+                .Select(x =>
+                    x.Trim().ToUpperInvariant())
+                .Distinct()
+                .ToList();
 
         if (normalizedDays.Count == 0)
         {
@@ -169,11 +355,19 @@ public sealed class MedicationService(
                 "At least one medication day is required.");
         }
 
-        if (normalizedDays.Any(x => !IsValidDay(x)))
+        if (
+            normalizedDays.Any(
+                x => !IsValidDay(x)))
         {
             throw new ArgumentException(
                 "Invalid medication day.");
         }
+
+        /*
+         * ==========================================
+         * TIME
+         * ==========================================
+         */
 
         if (hour is < 0 or > 23)
         {
@@ -187,16 +381,32 @@ public sealed class MedicationService(
                 "Minute must be between 0 and 59.");
         }
 
-        var normalizedSchedules = normalizedDays
-            .Select(day => new ScheduleDocument(
-                day,
-                hour,
-                minute))
-            .ToList();
+        /*
+         * ==========================================
+         * BUILD SCHEDULES
+         * ==========================================
+         */
+
+        var normalizedSchedules =
+            normalizedDays
+                .Select(
+                    day =>
+                        new ScheduleDocument(
+                            day,
+                            hour,
+                            minute))
+                .ToList();
+
+        /*
+         * ==========================================
+         * FIRESTORE DOCUMENT
+         * ==========================================
+         */
 
         return new MedicineDocument(
             id,
             userId,
+            boxId,
             medicineName.Trim(),
             normalizedCompartments,
             normalizedSchedules,
@@ -205,18 +415,36 @@ public sealed class MedicationService(
             updatedAtUtc);
     }
 
-    private static bool IsValidCompartment(string value)
+    /*
+     * ==========================================
+     * COMPARTMENT VALIDATION
+     * ==========================================
+     */
+
+    private static bool IsValidCompartment(
+        string value)
     {
-        if (value.Length != 3 || value[0] != 'C')
+        if (
+            value.Length != 3 ||
+            value[0] != 'C')
+        {
             return false;
+        }
 
         return int.TryParse(
             value[1..],
-            out var number) &&
-            number is >= 1 and <= 21;
+            out var number)
+            && number is >= 1 and <= 21;
     }
 
-    private static bool IsValidDay(string value)
+    /*
+     * ==========================================
+     * DAY VALIDATION
+     * ==========================================
+     */
+
+    private static bool IsValidDay(
+        string value)
     {
         return value switch
         {
@@ -231,6 +459,12 @@ public sealed class MedicationService(
         };
     }
 
+    /*
+     * ==========================================
+     * RESPONSE MAPPING
+     * ==========================================
+     */
+
     private static MedicationResponse ToResponse(
         MedicineDocument document)
     {
@@ -239,13 +473,41 @@ public sealed class MedicationService(
             document.MedicineName,
             document.CompartmentIds,
             document.Schedules
-                .Select(x => new MedicationScheduleResponse(
-                    x.Day,
-                    x.Hour,
-                    x.Minute))
+                .Select(
+                    x =>
+                        new MedicationScheduleResponse(
+                            x.Day,
+                            $"{x.Hour:D2}:{x.Minute:D2}"))
                 .ToList(),
             document.IsActive,
             document.CreatedAtUtc,
             document.UpdatedAtUtc);
+    }
+
+    private static int ParseCompartmentId(string compartmentId)
+    {
+        if (!compartmentId.StartsWith(
+            "C",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException(
+                $"Invalid compartment ID: {compartmentId}");
+        }
+
+        if (!int.TryParse(
+            compartmentId[1..],
+            out var numericId))
+        {
+            throw new ArgumentException(
+                $"Invalid compartment ID: {compartmentId}");
+        }
+
+        if (numericId < 1 || numericId > 21)
+        {
+            throw new ArgumentException(
+                $"Compartment ID must be between C01 and C21.");
+        }
+
+        return numericId;
     }
 }

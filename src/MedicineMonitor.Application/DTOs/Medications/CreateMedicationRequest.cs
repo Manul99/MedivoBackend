@@ -8,15 +8,33 @@ public sealed class CreateMedicationRequest : IValidatableObject
     [MaxLength(200)]
     public string MedicineName { get; init; } = string.Empty;
 
+    /*
+     * Frontend sends:
+     *
+     * ["C01", "C02", "C03"]
+     */
     [Required]
     [MinLength(1)]
     [MaxLength(21)]
     public List<string> CompartmentIds { get; init; } = [];
 
+    /*
+     * Frontend sends:
+     *
+     * ["MONDAY", "TUESDAY"]
+     */
     [Required]
     [MinLength(1)]
     public List<string> Days { get; init; } = [];
 
+    /*
+     * Frontend sends the time as separate values.
+     *
+     * Example:
+     *
+     * hour   = 20
+     * minute = 0
+     */
     [Range(0, 23)]
     public int Hour { get; init; }
 
@@ -26,6 +44,12 @@ public sealed class CreateMedicationRequest : IValidatableObject
     public IEnumerable<ValidationResult> Validate(
         ValidationContext validationContext)
     {
+        /*
+         * ==========================================
+         * MEDICINE NAME
+         * ==========================================
+         */
+
         if (string.IsNullOrWhiteSpace(MedicineName))
         {
             yield return new ValidationResult(
@@ -33,12 +57,71 @@ public sealed class CreateMedicationRequest : IValidatableObject
                 [nameof(MedicineName)]);
         }
 
-        if (CompartmentIds.Any(string.IsNullOrWhiteSpace))
+        /*
+         * ==========================================
+         * COMPARTMENTS
+         * ==========================================
+         */
+
+        if (CompartmentIds.Count == 0)
         {
             yield return new ValidationResult(
-                "Compartment IDs cannot be empty.",
+                "At least one compartment must be selected.",
                 [nameof(CompartmentIds)]);
         }
+
+        /*
+         * Normalize and validate:
+         *
+         * C01
+         * C02
+         * ...
+         * C21
+         */
+
+        var normalizedCompartments =
+            CompartmentIds
+                .Where(x =>
+                    !string.IsNullOrWhiteSpace(x))
+                .Select(x =>
+                    x.Trim().ToUpperInvariant())
+                .ToList();
+
+        if (
+            normalizedCompartments.Any(
+                x => !IsValidCompartment(x))
+        )
+        {
+            yield return new ValidationResult(
+                "Compartment IDs must be C01 through C21.",
+                [nameof(CompartmentIds)]);
+        }
+
+        /*
+         * Prevent duplicates.
+         *
+         * ["C01", "C02"] = valid
+         *
+         * ["C01", "C01"] = invalid
+         */
+
+        if (
+            normalizedCompartments.Count !=
+            normalizedCompartments
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count()
+        )
+        {
+            yield return new ValidationResult(
+                "Compartment IDs cannot contain duplicates.",
+                [nameof(CompartmentIds)]);
+        }
+
+        /*
+         * ==========================================
+         * DAYS
+         * ==========================================
+         */
 
         if (Days.Count == 0)
         {
@@ -47,27 +130,73 @@ public sealed class CreateMedicationRequest : IValidatableObject
                 [nameof(Days)]);
         }
 
-        var validDays = new HashSet<string>(
-            StringComparer.OrdinalIgnoreCase)
-        {
-            "MONDAY",
-            "TUESDAY",
-            "WEDNESDAY",
-            "THURSDAY",
-            "FRIDAY",
-            "SATURDAY",
-            "SUNDAY"
-        };
+        var validDays =
+            new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase)
+            {
+                "MONDAY",
+                "TUESDAY",
+                "WEDNESDAY",
+                "THURSDAY",
+                "FRIDAY",
+                "SATURDAY",
+                "SUNDAY"
+            };
 
-        var invalidDays = Days
-            .Where(day => !validDays.Contains(day))
-            .ToList();
+        var normalizedDays =
+            Days
+                .Where(x =>
+                    !string.IsNullOrWhiteSpace(x))
+                .Select(x =>
+                    x.Trim().ToUpperInvariant())
+                .ToList();
 
-        if (invalidDays.Count > 0)
+        if (
+            normalizedDays.Any(
+                x => !validDays.Contains(x))
+        )
         {
             yield return new ValidationResult(
                 "Days must contain valid weekdays.",
                 [nameof(Days)]);
         }
+
+        /*
+         * ==========================================
+         * TIME
+         * ==========================================
+         */
+
+        if (Hour is < 0 or > 23)
+        {
+            yield return new ValidationResult(
+                "Hour must be between 0 and 23.",
+                [nameof(Hour)]);
+        }
+
+        if (Minute is < 0 or > 59)
+        {
+            yield return new ValidationResult(
+                "Minute must be between 0 and 59.",
+                [nameof(Minute)]);
+        }
+    }
+
+    private static bool IsValidCompartment(
+        string value)
+    {
+        if (
+            value.Length != 3 ||
+            value[0] != 'C'
+        )
+        {
+            return false;
+        }
+
+        return int.TryParse(
+            value[1..],
+            out var number
+        )
+        && number is >= 1 and <= 21;
     }
 }

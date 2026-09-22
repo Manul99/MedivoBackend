@@ -43,10 +43,18 @@ public sealed class MedicationsController(MedicationService medicationService) :
     }
 
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(string id, CancellationToken cancellationToken)
+    public async Task<IActionResult> Delete(
+    string id,
+    CancellationToken cancellationToken)
     {
-        var deleted = await medicationService.DeleteAsync(id, cancellationToken);
-        return deleted ? NoContent() : NotFound();
+        var deactivated =
+            await medicationService.DeactivateAsync(
+                id,
+                cancellationToken);
+
+        return deactivated
+            ? NoContent()
+            : NotFound();
     }
 }
 

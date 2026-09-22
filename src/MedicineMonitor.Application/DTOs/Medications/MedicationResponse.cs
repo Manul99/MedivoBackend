@@ -11,5 +11,4 @@ public sealed record MedicationResponse(
 
 public sealed record MedicationScheduleResponse(
     string Day,
-    int Hour,
-    int Minute);
+    string Time);
