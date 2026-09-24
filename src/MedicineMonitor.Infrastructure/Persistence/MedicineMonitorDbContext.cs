@@ -7,6 +7,10 @@ public sealed class MedicineMonitorDbContext(DbContextOptions<MedicineMonitorDbC
 {
     public DbSet<User> Users => Set<User>();
     public DbSet<Box> Boxes => Set<Box>();
+    public DbSet<MedicationSmsNotification>
+    MedicationSmsNotifications =>
+    Set<MedicationSmsNotification>();
+    public DbSet<MedicalDocument> MedicalDocuments =>Set<MedicalDocument>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -49,5 +53,104 @@ public sealed class MedicineMonitorDbContext(DbContextOptions<MedicineMonitorDbC
             entity.Property(x => x.CreatedAtUtc)
                 .IsRequired();
         });
+
+        modelBuilder.Entity<MedicationSmsNotification>(
+    entity =>
+    {
+        entity.ToTable(
+            "medication_sms_notifications");
+
+        entity.HasKey(x => x.Id);
+
+        entity.Property(x => x.MedicationId)
+            .HasMaxLength(100)
+            .IsRequired();
+
+        entity.Property(x => x.UserId)
+            .IsRequired();
+
+        entity.Property(x => x.ScheduledDate)
+            .HasColumnType("date")
+            .IsRequired();
+
+        entity.Property(x => x.ScheduledTime)
+            .HasColumnType("time")
+            .IsRequired();
+
+        entity.Property(x => x.PhoneNumber)
+            .HasMaxLength(30)
+            .IsRequired();
+
+        entity.Property(x => x.Status)
+            .HasMaxLength(30)
+            .IsRequired();
+
+        entity.Property(x => x.TextLkMessageId)
+            .HasMaxLength(200);
+
+        entity.Property(x => x.SentAtUtc);
+
+        entity.Property(x => x.CreatedAtUtc)
+            .IsRequired();
+
+        entity.HasIndex(x => new
+        {
+            x.MedicationId,
+            x.ScheduledDate,
+            x.ScheduledTime
+        })
+        .IsUnique();
+    });
+
+        modelBuilder.Entity<MedicalDocument>(
+                entity =>
+                {
+                    entity.ToTable("medical_documents");
+
+                    entity.HasKey(x => x.Id);
+
+                    entity.Property(x => x.UserId)
+                        .IsRequired();
+
+                    entity.Property(x => x.DocumentType)
+                        .HasMaxLength(50)
+                        .IsRequired();
+
+                    entity.Property(x => x.DocumentName)
+                        .HasMaxLength(200)
+                        .IsRequired();
+
+                    entity.Property(x => x.OriginalFileName)
+                        .HasMaxLength(255)
+                        .IsRequired();
+
+                    entity.Property(x => x.StoragePath)
+                        .HasMaxLength(500)
+                        .IsRequired();
+
+                    entity.Property(x => x.ContentType)
+                        .HasMaxLength(100)
+                        .IsRequired();
+
+                    entity.Property(x => x.FileSizeBytes)
+                        .IsRequired();
+
+                    entity.Property(x => x.DocumentDate)
+                        .HasColumnType("date");
+
+                    entity.Property(x => x.Description)
+                        .HasMaxLength(1000);
+
+                    entity.Property(x => x.CreatedAtUtc)
+                        .IsRequired();
+
+                    entity.HasIndex(x => x.UserId);
+
+                    entity.HasIndex(x => new
+                    {
+                        x.UserId,
+                        x.CreatedAtUtc
+                    });
+                });
     }
 }

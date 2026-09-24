@@ -6,6 +6,7 @@ public interface IMedicationRepository
     Task<MedicineDocument?> GetAsync(string userId, string medicationId, CancellationToken cancellationToken);
     Task<IReadOnlyList<MedicineDocument>> GetForUserAsync(string userId, CancellationToken cancellationToken);
     Task DeactivateAsync(string userId,string medicationId,CancellationToken cancellationToken);
+    Task<IReadOnlyList<MedicineDocument>> GetAllAsync(CancellationToken cancellationToken);
 }
 
 

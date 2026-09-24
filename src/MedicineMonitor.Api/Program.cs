@@ -1,14 +1,17 @@
-using System.Text.Json.Serialization;
 using MedicineMonitor.Api.Authentication;
 using MedicineMonitor.Api.Extensions;
 using MedicineMonitor.Api.Middleware;
 using MedicineMonitor.Application.Abstractions;
+using MedicineMonitor.Application.Interfaces;
 using MedicineMonitor.Application.Services;
 using MedicineMonitor.Infrastructure;
+using MedicineMonitor.Infrastructure.Notifications;
 using MedicineMonitor.Infrastructure.Persistence;
+using MedicineMonitor.Infrastructure.Scheduling;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 var postgresConnection =
@@ -26,7 +29,12 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<MedicationService>();
+builder.Services.Configure<TextLkOptions>(
+    builder.Configuration.GetSection("TextLk"));
 builder.Services.AddHttpClient();
+builder.Services.AddScoped<ISmsService, TextLkSmsService>();
+builder.Services.AddHostedService<
+    MedicationReminderBackgroundService>();
 
 builder.Services.AddInfrastructure(builder.Configuration);
 
