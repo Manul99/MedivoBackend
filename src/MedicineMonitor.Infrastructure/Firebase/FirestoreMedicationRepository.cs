@@ -216,4 +216,21 @@ public sealed class FirestoreMedicationRepository(FirebaseClient client)
 
         return Convert.ToDateTime(value).ToUniversalTime();
     }
+
+    public async Task<IReadOnlyList<MedicineDocument>> GetAllAsync(
+    CancellationToken cancellationToken)
+    {
+        var snapshot =
+            await _collection.GetSnapshotAsync(
+                cancellationToken);
+
+        return snapshot.Documents
+            .Where(document => document.Exists)
+            .Select(document =>
+                Map(
+                    document.Id,
+                    document.ToDictionary()))
+            .OrderByDescending(x => x.UpdatedAtUtc)
+            .ToList();
+    }
 }

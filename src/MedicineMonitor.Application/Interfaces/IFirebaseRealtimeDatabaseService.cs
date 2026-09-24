@@ -20,6 +20,11 @@ namespace MedicineMonitor.Application.Interfaces
             string boxId,
             int compartmentId,
             CancellationToken cancellationToken);
+
+        Task DeleteAlarmAsync(
+            string boxId,
+            int compartmentId,
+            CancellationToken cancellationToken);
     }
 
     public sealed record FirebaseAlarmConfiguration(

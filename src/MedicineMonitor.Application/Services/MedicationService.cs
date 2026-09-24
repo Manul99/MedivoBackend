@@ -1,6 +1,7 @@
 using MedicineMonitor.Application.Abstractions;
 using MedicineMonitor.Application.DTOs.Medications;
 using MedicineMonitor.Application.Interfaces;
+using MedicineMonitor.Domain.Entities;
 
 namespace MedicineMonitor.Application.Services;
 
@@ -94,6 +95,32 @@ public sealed class MedicationService(
                     day,
                     true,
                     time),
+                cancellationToken);
+        }
+
+        var alarmDay =
+    GetFirebaseAlarmDay(
+        document.Schedules);
+
+        var alarmTime =
+            GetFirebaseAlarmTime(
+                document.Schedules);
+
+        foreach (
+            var compartmentId
+            in document.CompartmentIds)
+        {
+            var numericCompartmentId =
+                ParseCompartmentId(
+                    compartmentId);
+
+            await realtimeDatabaseService.SetAlarmAsync(
+                document.BoxId,
+                numericCompartmentId,
+                new FirebaseAlarmConfiguration(
+                    alarmDay,
+                    true,
+                    alarmTime),
                 cancellationToken);
         }
 
@@ -204,6 +231,54 @@ public sealed class MedicationService(
                 existing.CreatedAtUtc,
                 DateTime.UtcNow);
 
+        // Get RTDB alarm values
+
+        var alarmDay  = GetFirebaseAlarmDay(updated.Schedules);
+
+        var alarmTime = GetFirebaseAlarmTime(updated.Schedules);
+
+        // Compartments before update
+
+        var existingCompartmentIds =
+            existing.CompartmentIds
+                .Select(ParseCompartmentId)
+                .ToHashSet();
+
+        // Compartments after update
+
+        var updatedCompartmentIds =
+            updated.CompartmentIds
+                .Select(ParseCompartmentId)
+                .ToHashSet();
+
+        // Delete removed RTDB alarms
+
+        var removedCompartmentIds =
+            existingCompartmentIds
+                .Except(updatedCompartmentIds);
+
+        foreach(var compartmentId in removedCompartmentIds)
+        {
+            await realtimeDatabaseService.DeleteAlarmAsync(
+                updated.BoxId,
+                compartmentId,
+                cancellationToken);
+        }
+
+        //Add / update RTDB alarm
+
+        foreach(var compartmentId in updatedCompartmentIds)
+        {
+            await realtimeDatabaseService.SetAlarmAsync(
+                updated.BoxId,
+                compartmentId,
+                new FirebaseAlarmConfiguration(
+                    alarmDay,
+                    true,
+                    alarmTime),
+                cancellationToken);
+        }
+
         await repository.SaveAsync(
             updated,
             cancellationToken);
@@ -232,6 +307,18 @@ public sealed class MedicationService(
 
         if (existing is null)
             return false;
+
+        foreach (var compartmentId in existing.CompartmentIds)
+        {
+            var numericCompartmentId =
+                ParseCompartmentId(
+                    compartmentId);
+
+            await realtimeDatabaseService.DeleteAlarmAsync(
+                existing.BoxId,
+                numericCompartmentId,
+                cancellationToken);
+        }
 
         await repository.DeactivateAsync(
             userId,
@@ -509,5 +596,85 @@ public sealed class MedicationService(
         }
 
         return numericId;
+    }
+
+    private static string GetFirebaseAlarmDay(
+    IReadOnlyList<ScheduleDocument> schedules)
+    {
+        var selectedDays = schedules
+            .Select(x => x.Day)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var allDays = new HashSet<string>(
+            new[]
+            {
+            "MONDAY",
+            "TUESDAY",
+            "WEDNESDAY",
+            "THURSDAY",
+            "FRIDAY",
+            "SATURDAY",
+            "SUNDAY"
+            },
+            StringComparer.OrdinalIgnoreCase);
+
+        /*
+         * All 7 days selected.
+         * Firebase RTDB uses "Everyday".
+         */
+        if (
+            selectedDays.Count == 7 &&
+            selectedDays.All(allDays.Contains)
+        )
+        {
+            return "Everyday";
+        }
+
+        /*
+         * Only one day selected.
+         */
+        if (selectedDays.Count == 1)
+        {
+            return selectedDays[0].ToUpperInvariant() switch
+            {
+                "MONDAY" => "Monday",
+                "TUESDAY" => "Tuesday",
+                "WEDNESDAY" => "Wednesday",
+                "THURSDAY" => "Thursday",
+                "FRIDAY" => "Friday",
+                "SATURDAY" => "Saturday",
+                "SUNDAY" => "Sunday",
+
+                _ => throw new InvalidOperationException(
+                    $"Invalid day: {selectedDays[0]}")
+            };
+        }
+
+        /*
+         * Multiple days other than all 7.
+         *
+         * Current RTDB structure only has one
+         * "day" field, so do not invent a format.
+         */
+        throw new InvalidOperationException(
+            "Multiple selected days are not supported by the current RTDB alarm format.");
+    }
+
+    private static string GetFirebaseAlarmTime(
+    IReadOnlyList<ScheduleDocument> schedules)
+    {
+        var times = schedules
+            .Select(x => $"{x.Hour:D2}:{x.Minute:D2}")
+            .Distinct()
+            .ToList();
+
+        if (times.Count != 1)
+        {
+            throw new InvalidOperationException(
+                "All selected days must use the same alarm time.");
+        }
+
+        return times[0];
     }
 }

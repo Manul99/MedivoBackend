@@ -182,6 +182,57 @@ public sealed class FirebaseRealtimeDatabaseService(
         }
     }
 
+    public async Task DeleteAlarmAsync(
+    string boxId,
+    int compartmentId,
+    CancellationToken cancellationToken)
+    {
+        ValidateBoxId(boxId);
+        ValidateCompartmentId(compartmentId);
+
+        var path =
+            BuildAlarmPath(
+                boxId,
+                compartmentId);
+
+        var url =
+            BuildDatabaseUrl(path);
+
+        var accessToken =
+            await GetAccessTokenAsync(
+                cancellationToken);
+
+        using var request =
+            new HttpRequestMessage(
+                HttpMethod.Delete,
+                url);
+
+        request.Headers.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                accessToken);
+
+        using var response =
+            await _httpClientFactory
+                .CreateClient()
+                .SendAsync(
+                    request,
+                    cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var responseBody =
+                await response.Content.ReadAsStringAsync(
+                    cancellationToken);
+
+            throw new InvalidOperationException(
+                $"Failed to delete Firebase RTDB alarm. " +
+                $"Status: {(int)response.StatusCode} " +
+                $"{response.StatusCode}. " +
+                $"Response: {responseBody}");
+        }
+    }
+
     /*
      * ==========================================
      * ACCESS TOKEN
