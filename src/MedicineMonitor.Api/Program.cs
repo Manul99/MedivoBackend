@@ -20,9 +20,6 @@ var postgresConnection =
 Console.WriteLine(
     $"PostgreSQL configured: {!string.IsNullOrWhiteSpace(postgresConnection)}");
 
-Console.WriteLine(
-    $"PostgreSQL host info: {postgresConnection?.Split('@').LastOrDefault()}");
-
 builder.Services.AddSingleton(NpgsqlDataSource.Create(postgresConnection));
 
 builder.Services.AddHttpContextAccessor();
@@ -83,6 +80,8 @@ app.UseCors("WebClient");
 app.UseMiddleware<CsrfMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseSwagger();
+app.UseSwaggerUI();
 app.MapControllers();
 
 if (app.Environment.IsDevelopment() &&
