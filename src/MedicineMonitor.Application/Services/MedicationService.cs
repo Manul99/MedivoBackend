@@ -74,29 +74,29 @@ public sealed class MedicationService(
             document,
             cancellationToken);
 
-        var day = string.Join(
-            ",",
-            document.Schedules.Select(x => x.Day));
+        //var day = string.Join(
+        //    ",",
+        //    document.Schedules.Select(x => x.Day));
 
-        var time = document.Schedules
-            .Select(x => $"{x.Hour:D2}:{x.Minute:D2}")
-            .Distinct()
-            .Single();
+        //var time = document.Schedules
+        //    .Select(x => $"{x.Hour:D2}:{x.Minute:D2}")
+        //    .Distinct()
+        //    .Single();
 
-        foreach (var compartmentId in document.CompartmentIds)
-        {
-            var numericCompartmentId =
-                ParseCompartmentId(compartmentId);
+        //foreach (var compartmentId in document.CompartmentIds)
+        //{
+        //    var numericCompartmentId =
+        //        ParseCompartmentId(compartmentId);
 
-            await realtimeDatabaseService.SetAlarmAsync(
-                document.BoxId,
-                numericCompartmentId,
-                new FirebaseAlarmConfiguration(
-                    day,
-                    true,
-                    time),
-                cancellationToken);
-        }
+        //    await realtimeDatabaseService.SetAlarmAsync(
+        //        document.BoxId,
+        //        numericCompartmentId,
+        //        new FirebaseAlarmConfiguration(
+        //            day,
+        //            true,
+        //            time),
+        //        cancellationToken);
+        //}
 
         var alarmDay =
     GetFirebaseAlarmDay(
@@ -606,6 +606,12 @@ public sealed class MedicationService(
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        if (selectedDays.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "At least one medication day is required.");
+        }
+
         var allDays = new HashSet<string>(
             new[]
             {
@@ -623,20 +629,22 @@ public sealed class MedicationService(
          * All 7 days selected.
          * Firebase RTDB uses "Everyday".
          */
-        if (
-            selectedDays.Count == 7 &&
-            selectedDays.All(allDays.Contains)
-        )
+        if (selectedDays.Count == 7 &&
+            selectedDays.All(allDays.Contains))
         {
             return "Everyday";
         }
 
         /*
-         * Only one day selected.
+         * Convert selected days to normal text.
+         *
+         * Example:
+         * MONDAY,WEDNESDAY,FRIDAY
+         * becomes:
+         * Monday,Wednesday,Friday
          */
-        if (selectedDays.Count == 1)
-        {
-            return selectedDays[0].ToUpperInvariant() switch
+        var formattedDays = selectedDays
+            .Select(day => day.ToUpperInvariant() switch
             {
                 "MONDAY" => "Monday",
                 "TUESDAY" => "Tuesday",
@@ -647,18 +655,10 @@ public sealed class MedicationService(
                 "SUNDAY" => "Sunday",
 
                 _ => throw new InvalidOperationException(
-                    $"Invalid day: {selectedDays[0]}")
-            };
-        }
+                    $"Invalid day: {day}")
+            });
 
-        /*
-         * Multiple days other than all 7.
-         *
-         * Current RTDB structure only has one
-         * "day" field, so do not invent a format.
-         */
-        throw new InvalidOperationException(
-            "Multiple selected days are not supported by the current RTDB alarm format.");
+        return string.Join(",", formattedDays);
     }
 
     private static string GetFirebaseAlarmTime(

@@ -1,5 +1,7 @@
 ﻿using Google.Apis.Auth.OAuth2;
+using MedicineMonitor.Application.DTOs.FirebaseMedicineLogDto;
 using MedicineMonitor.Application.Interfaces;
+using MedicineMonitor.Application.MedicalDocuments.Models;
 using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Options;
 using System.Net.Http.Headers;
@@ -363,5 +365,95 @@ public sealed class FirebaseRealtimeDatabaseService(
             throw new ArgumentException(
                 "Alarm time must use HH:mm format.");
         }
+    }
+
+    public async Task<IReadOnlyList<FirebaseMedicineLog>>
+    GetMedicineLogsAsync(
+        string boxId,
+        DateOnly fromDate,
+        DateOnly toDate,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(boxId))
+        {
+            throw new ArgumentException(
+                "Box ID is required.",
+                nameof(boxId));
+        }
+
+        if (fromDate > toDate)
+        {
+            throw new ArgumentException(
+                "From date cannot be after to date.");
+        }
+
+        var accessToken =await GetAccessTokenAsync(cancellationToken);
+
+        var encodedBoxId = Uri.EscapeDataString(boxId);
+
+        var from =Uri.EscapeDataString( fromDate.ToString("yyyy-MM-dd"));
+
+        var to = Uri.EscapeDataString( toDate.ToString("yyyy-MM-dd"));
+
+        var url =
+            $"{_options.RealtimeDatabaseUrl.TrimEnd('/')}" +
+            $"/MedicinePacks/{encodedBoxId}/logs.json" +
+            $"?orderBy=%22date%22" +
+            $"&startAt=%22{from}%22" +
+            $"&endAt=%22{to}%22";
+
+        using var request =new HttpRequestMessage(  HttpMethod.Get,url);
+
+        request.Headers.Authorization =new AuthenticationHeaderValue("Bearer",accessToken);
+
+        using var response =
+            await _httpClientFactory
+                .CreateClient()
+                .SendAsync(
+                    request,
+                    cancellationToken);
+
+        var responseBody =
+            await response.Content.ReadAsStringAsync(
+                cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(
+                $"Firebase logs request failed. " +
+                $"Status: {(int)response.StatusCode} " +
+                $"{response.StatusCode}. " +
+                $"Response: {responseBody}");
+        }
+
+        if (string.IsNullOrWhiteSpace(responseBody) ||
+            responseBody == "null")
+        {
+            return Array.Empty<FirebaseMedicineLog>();
+        }
+
+        var logs =
+            JsonSerializer.Deserialize<
+                Dictionary<string, FirebaseMedicineLogDto>>(
+                    responseBody,
+                    new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+
+        if (logs is null)
+        {
+            return Array.Empty<FirebaseMedicineLog>();
+        }
+
+        return logs
+            .Select(x =>
+                new FirebaseMedicineLog(
+                    x.Key,
+                    x.Value.Date,
+                    x.Value.MacAddress,
+                    x.Value.SlotNumber,
+                    x.Value.Time))
+            .ToList();
     }
 }

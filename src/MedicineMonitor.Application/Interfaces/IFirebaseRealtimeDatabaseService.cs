@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MedicineMonitor.Application.MedicalDocuments.Models;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -25,6 +26,12 @@ namespace MedicineMonitor.Application.Interfaces
             string boxId,
             int compartmentId,
             CancellationToken cancellationToken);
+
+        Task<IReadOnlyList<FirebaseMedicineLog>> GetMedicineLogsAsync(
+        string boxId,
+        DateOnly fromDate,
+        DateOnly toDate,
+        CancellationToken cancellationToken);
     }
 
     public sealed record FirebaseAlarmConfiguration(
