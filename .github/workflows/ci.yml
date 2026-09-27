@@ -1,0 +1,35 @@
+name: Medivo Backend CI
+
+on:
+  push:
+    branches:
+      - features/development/medivobackend
+
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build-test-docker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore MedicineMonitor.slnx
+
+      - name: Build
+        run: dotnet build MedicineMonitor.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test MedicineMonitor.slnx --configuration Release --no-build
+
+      - name: Build Docker image
+        run: docker build -t medivo-api:ci .
