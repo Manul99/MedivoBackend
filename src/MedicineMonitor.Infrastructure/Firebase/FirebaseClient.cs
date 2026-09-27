@@ -18,11 +18,13 @@ public sealed class FirebaseClient
                 "Firebase configuration is missing. Configure Firebase:ProjectId, ClientEmail and PrivateKey using user-secrets or a production secret store.");
         }
 
+        var privateKey = settings.PrivateKey.Replace("\\n", "\n").Trim();
+
         var serviceAccount = new ServiceAccountCredential(
             new ServiceAccountCredential.Initializer(settings.ClientEmail)
             {
                 ProjectId = settings.ProjectId
-            }.FromPrivateKey(settings.PrivateKey));
+            }.FromPrivateKey(privateKey));
 
         Credential = GoogleCredential.FromServiceAccountCredential(serviceAccount);
         App = FirebaseApp.Create(new AppOptions

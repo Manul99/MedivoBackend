@@ -1,5 +1,6 @@
 using MedicineMonitor.Application.Interfaces;
 using MedicineMonitor.Application.MedicalDocuments;
+using MedicineMonitor.Application.MedicationHistory;
 using MedicineMonitor.Domain.Repositories;
 using MedicineMonitor.Infrastructure.Firebase;
 using MedicineMonitor.Infrastructure.Persistence;
@@ -53,6 +54,7 @@ public static class DependencyInjection
 
         services.AddScoped<IMedicalDocumentRepository,MedicalDocumentRepository>();
         services.AddScoped<IMedicalDocumentService,MedicalDocumentService>();
+        services.AddScoped<IMedicationHistoryService, MedicationHistoryService>();
 
         return services;
     }
