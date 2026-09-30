@@ -16,23 +16,58 @@ public sealed class UserService(
             @"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$",
             RegexOptions.Compiled);
 
+    private static readonly HashSet<string> ValidBloodTypes =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "A+",
+            "A-",
+            "B+",
+            "B-",
+            "AB+",
+            "AB-",
+            "O+",
+            "O-"
+        };
+
+    /*
+     * ==========================================
+     * COMPLETE PROFILE
+     * ==========================================
+     */
+
     public async Task<UserProfileResponse> CompleteProfileAsync(
         CompleteProfileRequest request,
         CancellationToken cancellationToken)
     {
-        if (
-            !currentUser.IsAuthenticated ||
-            string.IsNullOrWhiteSpace(
-                currentUser.UserId))
-        {
-            throw new UnauthorizedAccessException();
-        }
+        EnsureAuthenticated();
 
         var firebaseUid =
-            currentUser.UserId;
+            currentUser.UserId!;
 
         var email =
             currentUser.Email ?? string.Empty;
+
+        var firstName =
+            NormalizeRequiredText(
+                request.FirstName,
+                "First name");
+
+        var lastName =
+            NormalizeRequiredText(
+                request.LastName,
+                "Last name");
+
+        var phoneNumber =
+            NormalizeRequiredText(
+                request.PhoneNumber,
+                "Phone number");
+
+        ValidateDateOfBirth(
+            request.DateOfBirth);
+
+        var bloodType =
+            NormalizeBloodType(
+                request.BloodType);
 
         var boxId =
             request.BoxId
@@ -53,9 +88,11 @@ public sealed class UserService(
             user = new User(
                 firebaseUid,
                 email,
-                request.FirstName,
-                request.LastName,
-                request.PhoneNumber);
+                firstName,
+                lastName,
+                phoneNumber,
+                request.DateOfBirth,
+                bloodType);
 
             await userRepository.UpsertAsync(
                 user,
@@ -64,10 +101,12 @@ public sealed class UserService(
         else
         {
             existing.UpdateProfile(
-                request.FirstName,
-                request.LastName,
-                request.PhoneNumber,
-                email);
+                firstName,
+                lastName,
+                phoneNumber,
+                email,
+                request.DateOfBirth,
+                bloodType);
 
             user = existing;
 
@@ -75,6 +114,12 @@ public sealed class UserService(
                 existing,
                 cancellationToken);
         }
+
+        /*
+         * ==========================================
+         * MEDICINE BOX
+         * ==========================================
+         */
 
         var existingBox =
             await boxRepository.GetByUserIdAsync(
@@ -134,6 +179,12 @@ public sealed class UserService(
         return ToResponse(user);
     }
 
+    /*
+     * ==========================================
+     * GET CURRENT USER
+     * ==========================================
+     */
+
     public async Task<UserProfileResponse?> GetMeAsync(
         CancellationToken cancellationToken)
     {
@@ -155,6 +206,185 @@ public sealed class UserService(
             : ToResponse(user);
     }
 
+    /*
+     * ==========================================
+     * UPDATE CURRENT USER PROFILE
+     * ==========================================
+     */
+
+    public async Task<UserProfileResponse> UpdateProfileAsync(
+        UpdateProfileRequest request,
+        CancellationToken cancellationToken)
+    {
+        EnsureAuthenticated();
+
+        var firebaseUid =
+            currentUser.UserId!;
+
+        var user =
+            await userRepository.GetByFirebaseUidAsync(
+                firebaseUid,
+                cancellationToken);
+
+        if (user is null)
+        {
+            throw new InvalidOperationException(
+                "Application user profile was not found.");
+        }
+
+        var firstName =
+            NormalizeRequiredText(
+                request.FirstName,
+                "First name");
+
+        var lastName =
+            NormalizeRequiredText(
+                request.LastName,
+                "Last name");
+
+        var phoneNumber =
+            NormalizeRequiredText(
+                request.PhoneNumber,
+                "Phone number");
+
+        ValidateDateOfBirth(
+            request.DateOfBirth);
+
+        var bloodType =
+            NormalizeBloodType(
+                request.BloodType);
+
+        /*
+         * Email comes from the authenticated
+         * Firebase session.
+         *
+         * The client cannot change the
+         * email through this endpoint.
+         */
+
+        var email =
+            currentUser.Email
+            ?? user.Email;
+
+        user.UpdateProfile(
+            firstName,
+            lastName,
+            phoneNumber,
+            email,
+            request.DateOfBirth,
+            bloodType);
+
+        await userRepository.UpsertAsync(
+            user,
+            cancellationToken);
+
+        await userRepository.SaveChangesAsync(
+            cancellationToken);
+
+        return ToResponse(user);
+    }
+
+    /*
+     * ==========================================
+     * AUTHENTICATION
+     * ==========================================
+     */
+
+    private void EnsureAuthenticated()
+    {
+        if (
+            !currentUser.IsAuthenticated ||
+            string.IsNullOrWhiteSpace(
+                currentUser.UserId))
+        {
+            throw new UnauthorizedAccessException();
+        }
+    }
+
+    /*
+     * ==========================================
+     * TEXT VALIDATION
+     * ==========================================
+     */
+
+    private static string NormalizeRequiredText(
+        string value,
+        string fieldName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new ArgumentException(
+                $"{fieldName} is required.");
+        }
+
+        var normalized =
+            value.Trim();
+
+        if (normalized.Length > 100)
+        {
+            throw new ArgumentException(
+                $"{fieldName} cannot exceed 100 characters.");
+        }
+
+        return normalized;
+    }
+
+    /*
+     * ==========================================
+     * DATE OF BIRTH VALIDATION
+     * ==========================================
+     */
+
+    private static void ValidateDateOfBirth(
+        DateOnly dateOfBirth)
+    {
+        var today =
+            DateOnly.FromDateTime(
+                DateTime.UtcNow);
+
+        if (dateOfBirth > today)
+        {
+            throw new ArgumentException(
+                "Date of birth cannot be in the future.");
+        }
+    }
+
+    /*
+     * ==========================================
+     * BLOOD TYPE VALIDATION
+     * ==========================================
+     */
+
+    private static string NormalizeBloodType(
+        string bloodType)
+    {
+        if (string.IsNullOrWhiteSpace(bloodType))
+        {
+            throw new ArgumentException(
+                "Blood type is required.");
+        }
+
+        var normalized =
+            bloodType
+                .Trim()
+                .ToUpperInvariant();
+
+        if (!ValidBloodTypes.Contains(
+                normalized))
+        {
+            throw new ArgumentException(
+                "Invalid blood type.");
+        }
+
+        return normalized;
+    }
+
+    /*
+     * ==========================================
+     * BOX ID VALIDATION
+     * ==========================================
+     */
+
     private static void ValidateBoxId(
         string boxId)
     {
@@ -166,6 +396,12 @@ public sealed class UserService(
         }
     }
 
+    /*
+     * ==========================================
+     * BUILD RESPONSE
+     * ==========================================
+     */
+
     private static UserProfileResponse ToResponse(
         User user) =>
         new(
@@ -175,6 +411,41 @@ public sealed class UserService(
             user.FirstName,
             user.LastName,
             user.PhoneNumber,
+            user.DateOfBirth,
+            user.BloodType,
+            CalculateAge(user.DateOfBirth),
             user.CreatedAtUtc,
             user.UpdatedAtUtc);
+
+    /*
+     * ==========================================
+     * CALCULATE AGE
+     * ==========================================
+     */
+
+    private static int? CalculateAge(
+        DateOnly? dateOfBirth)
+    {
+        if (!dateOfBirth.HasValue)
+        {
+            return null;
+        }
+
+        var today =
+            DateOnly.FromDateTime(
+                DateTime.UtcNow);
+
+        var age =
+            today.Year -
+            dateOfBirth.Value.Year;
+
+        if (
+            today <
+            dateOfBirth.Value.AddYears(age))
+        {
+            age--;
+        }
+
+        return age;
+    }
 }
