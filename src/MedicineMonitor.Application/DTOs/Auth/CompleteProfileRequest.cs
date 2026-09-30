@@ -12,5 +12,13 @@ public sealed class CompleteProfileRequest
 
     [MaxLength(30)]
     public string? PhoneNumber { get; init; }
-    public string BoxId { get; set; }
+
+    [Required]
+    public DateOnly DateOfBirth { get; init; }
+
+    [Required, MaxLength(10)]
+    public string BloodType { get; init; } = string.Empty;
+
+    [Required]
+    public string BoxId { get; init; } = string.Empty;
 }

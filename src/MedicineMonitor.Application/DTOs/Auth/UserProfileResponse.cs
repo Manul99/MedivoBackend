@@ -7,5 +7,8 @@ public sealed record UserProfileResponse(
     string FirstName,
     string LastName,
     string? PhoneNumber,
+    DateOnly? DateOfBirth,
+    string? BloodType,
+    int? Age,
     DateTime CreatedAtUtc,
     DateTime UpdatedAtUtc);
