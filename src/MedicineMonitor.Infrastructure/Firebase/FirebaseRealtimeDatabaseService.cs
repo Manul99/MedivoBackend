@@ -1,4 +1,5 @@
 ﻿using Google.Apis.Auth.OAuth2;
+using MedicineMonitor.Application.DTOs.Auth;
 using MedicineMonitor.Application.DTOs.FirebaseMedicineLogDto;
 using MedicineMonitor.Application.Interfaces;
 using MedicineMonitor.Application.MedicalDocuments.Models;
@@ -455,5 +456,64 @@ public sealed class FirebaseRealtimeDatabaseService(
                     x.Value.SlotNumber,
                     x.Value.Time))
             .ToList();
+    }
+
+    public async Task SetProfileAsync(
+     string boxId,
+     FirebaseProfile profile,
+     CancellationToken cancellationToken)
+    {
+        ValidateBoxId(boxId);
+
+        var accessToken =
+            await GetAccessTokenAsync(cancellationToken);
+
+        var path =
+            $"MedicinePacks/" +
+            $"{Uri.EscapeDataString(boxId)}" +
+            "/profile";
+
+        var url =
+            BuildDatabaseUrl(path);
+
+        using var request =
+            new HttpRequestMessage(
+                HttpMethod.Put,
+                url);
+
+        request.Headers.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                accessToken);
+
+        request.Content =
+            JsonContent.Create(new
+            {
+                userId = profile.UserId,
+                name = profile.Name,
+                age = profile.Age,
+                blood = profile.Blood,
+                phone = profile.Phone
+            });
+
+        using var response =
+            await _httpClientFactory
+                .CreateClient()
+                .SendAsync(
+                    request,
+                    cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var responseBody =
+                await response.Content.ReadAsStringAsync(
+                    cancellationToken);
+
+            throw new InvalidOperationException(
+                $"Failed to write Firebase RTDB profile. " +
+                $"Status: {(int)response.StatusCode} " +
+                $"{response.StatusCode}. " +
+                $"Response: {responseBody}");
+        }
     }
 }
