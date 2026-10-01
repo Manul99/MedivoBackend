@@ -9,7 +9,8 @@ namespace MedicineMonitor.Application.Services;
 public sealed class UserService(
     IUserRepository userRepository,
     IBoxRepository boxRepository,
-    ICurrentUser currentUser)
+    ICurrentUser currentUser,
+    IFirebaseRealtimeDatabaseService realtimeDatabaseService)
 {
     private static readonly Regex MacAddressRegex =
         new(
@@ -176,6 +177,11 @@ public sealed class UserService(
         await userRepository.SaveChangesAsync(
             cancellationToken);
 
+        await SyncFirebaseProfileAsync(
+            user,
+            boxId,
+            cancellationToken);
+
         return ToResponse(user);
     }
 
@@ -281,6 +287,21 @@ public sealed class UserService(
         await userRepository.SaveChangesAsync(
             cancellationToken);
 
+        var box = await boxRepository.GetByUserIdAsync(
+            user.Id,
+            cancellationToken);
+
+        if (box is null)
+        {
+            throw new InvalidOperationException(
+                "No Medicine Monitor box is associated with this user.");
+        }
+
+        await SyncFirebaseProfileAsync(
+            user,
+            box.BoxId,
+            cancellationToken);
+
         return ToResponse(user);
     }
 
@@ -299,6 +320,32 @@ public sealed class UserService(
         {
             throw new UnauthorizedAccessException();
         }
+    }
+
+    private async Task SyncFirebaseProfileAsync(
+    User user,
+    string boxId,
+    CancellationToken cancellationToken)
+    {
+        var age = CalculateAge(user.DateOfBirth);
+
+        if (!age.HasValue)
+        {
+            throw new InvalidOperationException(
+                "User date of birth is required to synchronize the Firebase profile.");
+        }
+
+        var profile = new FirebaseProfile(
+            UserId: user.Id.ToString(),
+            Name: $"{user.FirstName} {user.LastName}",
+            Age: age.Value,
+            Blood: user.BloodType ?? string.Empty,
+            Phone: user.PhoneNumber ?? string.Empty);
+
+        await realtimeDatabaseService.SetProfileAsync(
+            boxId,
+            profile,
+            cancellationToken);
     }
 
     /*

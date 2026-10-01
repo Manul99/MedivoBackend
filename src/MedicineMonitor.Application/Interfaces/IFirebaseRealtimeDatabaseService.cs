@@ -1,4 +1,5 @@
-﻿using MedicineMonitor.Application.MedicalDocuments.Models;
+﻿using MedicineMonitor.Application.DTOs.Auth;
+using MedicineMonitor.Application.MedicalDocuments.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -31,6 +32,11 @@ namespace MedicineMonitor.Application.Interfaces
         string boxId,
         DateOnly fromDate,
         DateOnly toDate,
+        CancellationToken cancellationToken);
+
+        Task SetProfileAsync(
+        string boxId,
+        FirebaseProfile profile,
         CancellationToken cancellationToken);
     }
 
