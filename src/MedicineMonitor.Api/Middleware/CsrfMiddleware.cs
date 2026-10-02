@@ -46,6 +46,12 @@ public sealed class CsrfMiddleware(RequestDelegate next, IConfiguration configur
         var cookieToken = context.Request.Cookies[CookieName];
         var headerToken = context.Request.Headers[HeaderName].ToString();
 
+        Console.WriteLine(
+        $"CSRF Cookie Present: {!string.IsNullOrWhiteSpace(cookieToken)}");
+
+        Console.WriteLine(
+            $"CSRF Header Present: {!string.IsNullOrWhiteSpace(headerToken)}");
+
         if (string.IsNullOrWhiteSpace(cookieToken) || string.IsNullOrWhiteSpace(headerToken))
             return false;
 
