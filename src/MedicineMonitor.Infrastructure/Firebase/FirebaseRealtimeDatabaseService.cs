@@ -516,4 +516,75 @@ public sealed class FirebaseRealtimeDatabaseService(
                 $"Response: {responseBody}");
         }
     }
+
+    public async Task SetBoxPowerAsync(
+    string boxId,
+    FirebaseBoxPowerConfiguration power,
+    CancellationToken cancellationToken)
+    {
+        ValidateBoxId(boxId);
+
+        if (string.IsNullOrWhiteSpace(power.UserId))
+        {
+            throw new ArgumentException(
+                "User ID is required.",
+                nameof(power));
+        }
+
+        if (power.Value is not 0 and not 1)
+        {
+            throw new ArgumentException(
+                "Box power value must be either 0 or 1.",
+                nameof(power));
+        }
+
+        var accessToken =
+            await GetAccessTokenAsync(cancellationToken);
+
+        var encodedBoxId =
+            Uri.EscapeDataString(boxId);
+
+        var url =
+            $"{_options.RealtimeDatabaseUrl.TrimEnd('/')}" +
+            $"/MedicinePacks/{encodedBoxId}/power.json";
+
+        var payload = new
+        {
+            userId = power.UserId,
+            value = power.Value
+        };
+
+        using var request =
+            new HttpRequestMessage(
+                HttpMethod.Put,
+                url);
+
+        request.Headers.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                accessToken);
+
+        request.Content =
+            JsonContent.Create(payload);
+
+        using var response =
+            await _httpClientFactory
+                .CreateClient()
+                .SendAsync(
+                    request,
+                    cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var responseBody =
+                await response.Content.ReadAsStringAsync(
+                    cancellationToken);
+
+            throw new InvalidOperationException(
+                $"Failed to write Firebase RTDB box power. " +
+                $"Status: {(int)response.StatusCode} " +
+                $"{response.StatusCode}. " +
+                $"Response: {responseBody}");
+        }
+    }
 }
