@@ -38,10 +38,19 @@ namespace MedicineMonitor.Application.Interfaces
         string boxId,
         FirebaseProfile profile,
         CancellationToken cancellationToken);
+
+        Task SetBoxPowerAsync(
+       string boxId,
+       FirebaseBoxPowerConfiguration power,
+       CancellationToken cancellationToken);
     }
 
     public sealed record FirebaseAlarmConfiguration(
         string Day,
         bool Enabled,
         string Time);
+
+    public sealed record FirebaseBoxPowerConfiguration(
+    string UserId,
+    int Value);
 }
