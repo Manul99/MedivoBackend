@@ -546,7 +546,7 @@ public sealed class FirebaseRealtimeDatabaseService(
 
         var url =
             $"{_options.RealtimeDatabaseUrl.TrimEnd('/')}" +
-            $"/MedicinePacks/{encodedBoxId}/power.json";
+            $"/MedicinePacks/{encodedBoxId}/display_power.json";
 
         var payload = new
         {
